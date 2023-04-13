@@ -1,7 +1,7 @@
 <?php
 
-defined('RELEASE_TARGET') OR define('RELEASE_TARGET', 'prod');	
-/*	defined('RELEASE_TARGET') OR define('RELEASE_TARGET', 'dev');	*/
+/* defined('RELEASE_TARGET') OR define('RELEASE_TARGET', 'prod');	*/
+defined('RELEASE_TARGET') OR define('RELEASE_TARGET', 'dev');	
 
 defined('PROCESSED_RSS_ITEMS_REG_NAME') OR define('PROCESSED_RSS_ITEMS_REG_NAME', 'published.txt');
 defined('TXT_FILE_ROW_END') OR define('TXT_FILE_ROW_END', "\n");

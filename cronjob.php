@@ -132,8 +132,7 @@ function extract_content_url($content) {
 function process_link_post($content_link) {
 
 	global $wp_website_target_user, $wp_website_target_password;
-	
-	
+		
 	if (filter_var($content_link, FILTER_VALIDATE_URL)) {
 		$content_link = urlencode($content_link);
 		$content_link = str_ireplace('https%3A%2F%2F', 'sec%3A%2F%2F', $content_link);
@@ -193,10 +192,16 @@ function process_link_post($content_link) {
 										$extra_data = [];
 										$extra_data['_yoast_wpseo_metadesc'] = $excerpt;
 										$extra_data['meta_data'] = [['key' => '_yoast_wpseo_metadesc', 'value' => $excerpt]];
+										$JWTWpAPI->add_post_categories($post, $err, '[pollyness]', 'Fonte: ', get_env_var('AI_API_USER_KEY'), get_env_var('AI_API_TOKEN'));
+										/*	$post->categories = $res;	*/
+
+//echo "\n categories = " . print_r($post->categories, true) . "\n";	// debug
+
+
 										if ($JWTWpAPI->create_post($post, $err, true, $extra_data)) {
 											return true;
 										} else {
-											echo '[ERROR] ' . $err . "\n";
+											echo "\n" . '[ERROR] ' . $err . "\n";
 											ab_log('[ERROR] ' . $err);
 										}
 									}
@@ -238,7 +243,9 @@ function filter_content($content) {
 
 /* [START]> comedonchisciotte.org */	
 	if (strpos($content, 'comedonchisciotte') !== false) { // Verifica della fonte 
+		$content = str_ireplace(' src="', ' title="', $content);
 		$content = str_ireplace('data-src="', 'src="', $content);
+		$content = str_ireplace('srcset="', 'src="', $content);
 		$content = str_ireplace('class="ff-og-image-inserted"', '', $content);
 		$pos1 = strpos($content, '<div class="avvisotg"');
 		if ($pos1 !== false) {

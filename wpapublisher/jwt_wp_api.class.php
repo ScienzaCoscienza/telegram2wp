@@ -1,9 +1,30 @@
 <?php
 
 include_once 'commons.php';
+include_once 'Html2Text.php';
 
 const ENDPOINT = 'wp-json/wp/v2/';
 const AUTH_ENDPOINT = 'wp-json/jwt-auth/v1/token/';
+
+
+function wpap_curl_post2(string $url, $data, ?string &$err = ''): ?string {
+
+	$ch = curl_init($url);
+	$post_data = http_build_query($data);
+	
+	curl_setopt($ch, CURLOPT_POST, true); // Metodo POST
+	curl_setopt($ch, CURLOPT_POSTFIELDS, $post_data); // Dati da inviare
+	curl_setopt($ch, CURLOPT_RETURNTRANSFER, true); // Restituisci il risultato come stringa
+	
+	if( ! $result = curl_exec($ch)) {
+		$err .= curl_error($ch);
+		$result = null;
+	}
+
+	curl_close($ch);
+	return $result;
+
+}
 
 class WpCategory {
 
@@ -33,7 +54,7 @@ class WpPost {
 	public ?int $featured_media_id = null;
 	public ?string $featured_media_url = null;
 	public ?string $format = null;
-	public ?string $categories = null;
+	public ?array $categories = null;
 	public ?array $tags = null;
 
 	public function __construct(string $title, string $content, string $excerpt) {
@@ -96,7 +117,7 @@ class JWTWpAPI {
 									'excerpt' => $post->excerpt,
 									'featured_media' => $post->featured_media_id,
 									'format' => $post->format,
-									'categories' => $post->categories,
+									'categories' => $this->filter_post_categories($post->categories),
 									'tags' => $this->_implode_tags($post->tags)
 								];
 				if (!empty($extra_data))
@@ -121,6 +142,26 @@ class JWTWpAPI {
 			$err .= $e->getMessage();
 			return null;
 		}
+
+	}
+
+	private function filter_post_categories(?array $categories): ?array {
+
+		$result = [];
+
+		if (empty($categories))
+			return null;
+
+		foreach ($categories as $category) {
+			$category = (int)$category;
+			if ($category)
+				$result[] = $category;
+		}
+		
+		if (empty($result))
+			return null;
+
+		return $result;
 
 	}
 
@@ -532,6 +573,110 @@ class JWTWpAPI {
 		}
 
 		return $this->_last_token;
+
+	}
+
+	public function add_post_categories(WpPost $post, ?string &$err = '', ?string $text_start_key = '[pollyness]', ?string $text_end_key = 'Fonte: ', ?string $ai_api_user_key = null, ?string $ai_api_token = null): ?array {
+
+		if (!($ai_api_user_key && $ai_api_token))
+			return [false];
+			
+		$result = null;
+		$all_categories = $this->categories($err);
+
+		if (!empty($all_categories)) {
+			$all_categories_ids = [];
+			$documents = [];
+			foreach ($all_categories as $cat_id => $cat) {
+				$all_categories_ids[] = (int)$cat_id;
+				$documents[] = $this->get_category_path_name($cat, $all_categories);
+			}
+			if (!empty($documents)) {
+				$html_content = new \Html2Text\Html2Text($post->content);
+				$text_content = $html_content->getText();
+				if ($text_start_key) {
+/*					
+					$pos1 = strpos(utf8_encode($text_content), utf8_encode($text_start_key));
+					if ($pos1 !== false) {
+						$text_content = trim(mb_substr(utf8_encode($text_content), $pos1 + mb_strlen(utf8_encode($text_start_key), 'UTF-8'), null, 'UTF-8'));
+					}
+*/
+					$pos1 = strpos($text_content, $text_start_key);
+					if ($pos1 !== false) {
+						$text_content = trim(substr($text_content, $pos1 + strlen($text_start_key)));
+					}
+					$pos1 = strpos($text_content, $text_end_key);
+					if ($pos1 !== false) {
+						$text_content = trim(substr($text_content, 0, $pos1));
+					}
+				}
+				$text_content = trim($text_content);
+				$query = "{$post->title}. $text_content";
+				$docs_text_content = json_encode($documents, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+				$postdata = ['query' => $query, 'docs' => $docs_text_content, 'token' => get_token($ai_api_user_key, $ai_api_token)];
+				$err = '';
+
+				if (RELEASE_TARGET === 'dev') {
+					$res = wpap_curl_post(AI_SEARCH_API_URL, $postdata, array(), $err);	
+				} else {
+					$res = wpap_curl_post(AI_SEARCH_API_URL, $postdata, array(), $err, array(), false);	
+				}
+
+				$res = trim($res);
+
+//echo '<p>res = ' . $res . '</p><br><br>';	// debug
+
+				if ($res) {
+					$result = json_decode($res, true);
+					if (!empty($result['message']))
+						$result['error'] = $result['message'];
+					if ((!empty($result)) && empty($result["error"])) {
+
+echo '<p>[630] result = ' . print_r($result, true) . '</p><br><br>';	// debug
+
+						$result = $result['data'];
+						$categories = [];
+						foreach ($result as $cat_index) {
+							if ($cat_index < count($all_categories_ids)) {
+								$new_cat = $all_categories_ids[(int)$cat_index];
+								if (!in_array($new_cat, $categories))
+									$categories[] = $new_cat;
+							}
+						}
+						$post->categories = $categories;	
+						$result = $categories;
+					} else {
+						$post->categories = null;
+						$result = [false];
+					}
+				} else {
+					echo "<p>err = $err</p><br><br>";	// debug
+					$post->categories = null;
+					$result = [$res];
+				}
+
+			}
+		}
+
+		return $result;
+
+	}
+
+	private function get_category_path_name(WpCategory $category, ?array $categories = null, string $sep = ', '): string {
+
+		if (false && $category->parent_id) {
+			if ($categories === null)
+				$categories = $this->categories();
+			if (empty($categories))
+				return $category->name;
+			foreach ($categories as $id => $cat) {
+				if ($id === ((int)$category->parent_id))
+					return $this->get_category_path_name($cat, $categories, $sep) . $sep . $category->name;
+			}
+			return $category->name;
+		} else {
+			return $category->name;
+		}
 
 	}
 

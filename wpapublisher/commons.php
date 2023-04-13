@@ -72,7 +72,7 @@ function wpap_curl_post(string $url, $data, ?array $options = array(), ?string &
 	} else {
 		$headers[] = 'Content-Type:application/json';
 		if (is_array($data)) {
-			$payload = json_encode($data);
+			$payload = json_encode($data, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
 		} else {
 			$payload = $data;
 		}
@@ -110,5 +110,22 @@ function wpap_curl_post(string $url, $data, ?array $options = array(), ?string &
 
 	curl_close($ch);
 	return $result;
+
+}
+
+function get_token($key, $token, $time_stamp = null) {
+
+	if (!$time_stamp) {
+		$time_stamp = time();
+	}
+
+	if ($time_stamp % 2 == 0) {
+		$token = $token . $time_stamp . $token;
+	} else {
+		$token = $time_stamp . $token;
+	}
+
+	$token = hash("sha256", $token);
+	return $time_stamp . '_' . $key . '_' . $token;
 
 }
