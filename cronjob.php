@@ -192,12 +192,10 @@ function process_link_post($content_link) {
 										$extra_data = [];
 										$extra_data['_yoast_wpseo_metadesc'] = $excerpt;
 										$extra_data['meta_data'] = [['key' => '_yoast_wpseo_metadesc', 'value' => $excerpt]];
-										$JWTWpAPI->add_post_categories($post, $err, '[pollyness]', 'Fonte: ', get_env_var('AI_API_USER_KEY'), get_env_var('AI_API_TOKEN'));
-										/*	$post->categories = $res;	*/
-
-//echo "\n categories = " . print_r($post->categories, true) . "\n";	// debug
-
-
+											
+										$res = $JWTWpAPI->add_post_categories($post, $err, '[pollyness]', 'Fonte: ', get_env_var('AI_API_USER_KEY'), get_env_var('AI_API_TOKEN'));
+										$post->categories = $res;
+										
 										if ($JWTWpAPI->create_post($post, $err, true, $extra_data)) {
 											return true;
 										} else {

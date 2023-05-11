@@ -355,6 +355,8 @@ class Html2Text
 
         $this->converter($text);
 
+        $this->linkList = array();
+
         if ($this->linkList) {
             $text .= "\n\nLinks:\n------\n";
             foreach ($this->linkList as $i => $url) {
@@ -411,6 +413,10 @@ class Html2Text
      */
     protected function buildlinkList($link, $display, $linkOverride = null)
     {
+
+        $this->linkList = array();
+        return $display;
+
         $linkMethod = ($linkOverride) ? $linkOverride : $this->options['do_links'];
         if ($linkMethod == 'none') {
             return $display;
@@ -578,6 +584,9 @@ class Html2Text
             case 'h':
                 return $this->toupper("\n\n" . $matches[3] . "\n\n");
             case 'a':
+
+                return '';
+
                 // override the link method
                 $linkOverride = null;
                 if (preg_match('/_html2text_link_(\w+)/', $matches[4], $linkOverrideMatch)) {

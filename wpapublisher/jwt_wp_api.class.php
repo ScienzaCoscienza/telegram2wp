@@ -592,8 +592,9 @@ class JWTWpAPI {
 				$documents[] = $this->get_category_path_name($cat, $all_categories);
 			}
 			if (!empty($documents)) {
-				$html_content = new \Html2Text\Html2Text($post->content);
+				$html_content = new \Html2Text\Html2Text($post->content, array('do_links' => 'none', 'width' => 0));
 				$text_content = $html_content->getText();
+				$text_content = str_ireplace('[Immagine]', '', $text_content);
 				if ($text_start_key) {
 /*					
 					$pos1 = strpos(utf8_encode($text_content), utf8_encode($text_start_key));
@@ -616,7 +617,7 @@ class JWTWpAPI {
 				$postdata = ['query' => $query, 'docs' => $docs_text_content, 'token' => get_token($ai_api_user_key, $ai_api_token)];
 				$err = '';
 
-				if (RELEASE_TARGET === 'dev') {
+				if (RELEASE_TARGET == 'dev') {
 					$res = wpap_curl_post(AI_SEARCH_API_URL, $postdata, array(), $err);	
 				} else {
 					$res = wpap_curl_post(AI_SEARCH_API_URL, $postdata, array(), $err, array(), false);	
@@ -662,20 +663,20 @@ echo '<p>[630] result = ' . print_r($result, true) . '</p><br><br>';	// debug
 
 	}
 
-	private function get_category_path_name(WpCategory $category, ?array $categories = null, string $sep = ', '): string {
+	private function get_category_path_name(WpCategory $category, ?array $categories = null, bool $full_path = false, string $sep = ' / ', string $exclude_str = ''): string {
 
-		if (false && $category->parent_id) {
+		if ($full_path && $category->parent_id) {
 			if ($categories === null)
 				$categories = $this->categories();
 			if (empty($categories))
-				return $category->name;
+				return str_replace($exclude_str, '', $category->name);
 			foreach ($categories as $id => $cat) {
 				if ($id === ((int)$category->parent_id))
-					return $this->get_category_path_name($cat, $categories, $sep) . $sep . $category->name;
+					return $this->get_category_path_name($cat, $categories, $sep) . $sep . str_replace($exclude_str, '', $category->name);
 			}
-			return $category->name;
+			return str_replace($exclude_str, '', $category->name);
 		} else {
-			return $category->name;
+			return str_replace($exclude_str, '', $category->name);
 		}
 
 	}
