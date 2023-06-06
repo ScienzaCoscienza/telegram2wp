@@ -4,18 +4,8 @@
 			"path": "wpapublisher/jwt_wp_api.class.php",
 			"bookmarks": [
 				{
-					"line": 591,
-					"column": 54,
-					"label": ""
-				}
-			]
-		},
-		{
-			"path": "cronjob.php",
-			"bookmarks": [
-				{
-					"line": 194,
-					"column": 38,
+					"line": 67,
+					"column": 8,
 					"label": ""
 				}
 			]

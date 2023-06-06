@@ -174,6 +174,19 @@ function process_link_post($content_link) {
 									}
 									if (!in_array(trim(strtolower($domain)), DOMAIN_BLACK_LIST, true)) {
 										$post = new WpPost($title, $content_html, $excerpt);
+
+
+
+
+										$str_comp_len = ((int)(strlen($excerpt) / 2));
+										$text_content = $post->get_text_content('[pollyness]', 'Fonte: ');
+										if (strtoupper(substr($excerpt, 0, $str_comp_len)) === strtoupper(substr($text_content, 0, $str_comp_len))) {
+											$post->excerpt = "DESCRIZIONE UGUALE";
+										}
+
+
+
+
 										if (WP_PUBLISH_AS_DRAFT) {
 											$post->status = 'draft';	
 										} else {
@@ -191,12 +204,38 @@ function process_link_post($content_link) {
 										$err = '';
 										$extra_data = [];
 										$extra_data['_yoast_wpseo_metadesc'] = $excerpt;
-										$extra_data['meta_data'] = [['key' => '_yoast_wpseo_metadesc', 'value' => $excerpt]];
-											
+										$extra_data['meta'] = [];
+										$extra_data['meta']['_yoast_wpseo_metadesc'] = $excerpt;
 										$res = $JWTWpAPI->add_post_categories($post, $err, '[pollyness]', 'Fonte: ', get_env_var('AI_API_USER_KEY'), get_env_var('AI_API_TOKEN'));
 										$post->categories = $res;
+										$extra_data['meta']['wp_firstcat_cetegory_id'] = (int)$post->categories[0];
 										
-										if ($JWTWpAPI->create_post($post, $err, true, $extra_data)) {
+$tmp_cat = $JWTWpAPI->categories();
+$tmp_res = [];
+foreach($res as $tmp_r) {
+	$tmp_r = (int)$tmp_r;
+	if (empty($tmp_cat[$tmp_r])) {
+		echo "<p>[ERRORE][205] indice $tmp_r inesistente.</p>";
+	} else {
+		$new_item = ['indice' => $tmp_r, 'nome' => $tmp_cat[$tmp_r]->name];
+		$tmp_res[] = $new_item;
+	}
+}
+echo "<p>[CATS] [{$post->title}] " . print_r($tmp_res, true) . "</p>";
+
+
+										if ((count($post->categories) > 1) && ($post->status === 'publish')) {
+											$post->status = 'draft';
+											$res = $JWTWpAPI->create_post($post, $err, true, $extra_data);
+											if ($res) {
+												$post->status = 'publish';
+												$res = $JWTWpAPI->modify_post($post, $err, true, $extra_data);
+											}
+										} else {
+											$res = $JWTWpAPI->create_post($post, $err, true, $extra_data);
+										}
+
+										if ($res) {
 											return true;
 										} else {
 											echo "\n" . '[ERROR] ' . $err . "\n";

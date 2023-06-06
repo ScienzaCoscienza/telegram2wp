@@ -65,6 +65,26 @@ class WpPost {
 
 	}
 
+	public function get_text_content(string $text_start_key = '', string $text_end_key = ''): string {
+
+		$html_content = new \Html2Text\Html2Text($this->content, array('do_links' => 'none', 'width' => 0));
+		$text_content = $html_content->getText();
+		$text_content = str_ireplace('[Immagine]', '', $text_content);
+		if ($text_start_key) {
+			$pos1 = strpos($text_content, $text_start_key);
+			if ($pos1 !== false) {
+				$text_content = trim(substr($text_content, $pos1 + strlen($text_start_key)));
+			}
+			$pos1 = strpos($text_content, $text_end_key);
+			if ($pos1 !== false) {
+				$text_content = trim(substr($text_content, 0, $pos1));
+			}
+		}
+		$text_content = trim($text_content);
+		return $text_content;
+
+	}
+
 }
 
 class WpUser {
@@ -91,6 +111,60 @@ class JWTWpAPI {
 	private ?array $_header = null;
 	private bool $_always_test_connection = true;
 	private bool $_auth_mode = true;
+
+	public function modify_post(WpPost $post, ?string &$err = '', bool $media_required = false, ?array $extra_data = null): ?int {
+
+		try {
+			$proceed = true;
+			if ($this->_auth_mode) {
+				if ($this->_always_test_connection)
+					$proceed = $this->connect($err);
+			} else {
+				$proceed = false;
+			}
+			if ($proceed) {
+				if ((!$post->featured_media_id) && ($post->featured_media_url)) {
+					$post->featured_media_id = $this->create_media($post->featured_media_url, '', $err);
+				}
+				if ($media_required && (!$post->featured_media_id))
+					return null;
+				$post_data = 	[
+									'author' => $post->author,
+									'date' => empty($post->date) ? null : date('Y-m-d', $post->date) . 'T' . date('H:i:s', $post->date),
+									'status' => $post->status,
+									'title' => $post->title,
+									'content' => $post->content,
+									'excerpt' => $post->excerpt,
+									'featured_media' => $post->featured_media_id,
+									'format' => $post->format,
+									'categories' => $this->filter_post_categories($post->categories),
+									'tags' => $this->_implode_tags($post->tags),
+									'id' => $post->id
+								];	
+				if (!empty($extra_data))
+					$post_data = $post_data + $extra_data;
+				$res = wpap_curl_post($this->_url . $this->_endpoint . 'posts/' . $post->id, $post_data, null, $err, $this->_header);
+				if ($res) {
+					$token_raw_data = json_decode($res, TRUE);
+					if (empty($token_raw_data)) {
+						$err = 'Bad JSON result data.';
+					} else {
+						if (empty($token_raw_data['message'])) {
+							if (!empty($token_raw_data['id']))
+								return (int)$token_raw_data['id'];
+						} else {
+							$err = $token_raw_data['message'];
+						}
+					}
+				}
+			}
+			return null;
+		} catch (Exception $e) {
+			$err .= $e->getMessage();
+			return null;
+		}
+
+	}
 
 	public function create_post(WpPost $post, ?string &$err = '', bool $media_required = false, ?array $extra_data = null): ?int {
 
@@ -121,7 +195,7 @@ class JWTWpAPI {
 									'tags' => $this->_implode_tags($post->tags)
 								];
 				if (!empty($extra_data))
-					$post_data = $post_data + $extra_data;
+					$post_data = array_merge($post_data, $extra_data);
 				$res = wpap_curl_post($this->_url . $this->_endpoint . 'posts', $post_data, null, $err, $this->_header);
 				if ($res) {
 					$token_raw_data = json_decode($res, TRUE);
@@ -576,7 +650,21 @@ class JWTWpAPI {
 
 	}
 
-	public function add_post_categories(WpPost $post, ?string &$err = '', ?string $text_start_key = '[pollyness]', ?string $text_end_key = 'Fonte: ', ?string $ai_api_user_key = null, ?string $ai_api_token = null): ?array {
+	private function chk_parent_and_child(int $parent_id, int $child_id, array $all_categories): bool {
+		if (!empty($all_categories[$child_id])) {
+			$child_cat = $all_categories[$child_id];
+			if ($child_cat->parent_id) {
+				if (((int)$child_cat->parent_id) === $parent_id) {
+					return true;
+				} else {
+					return $this->chk_parent_and_child($parent_id, (int)$child_cat->parent_id, $all_categories);
+				}
+			}
+		}
+		return false;
+	}
+
+	public function add_post_categories(WpPost $post, ?string &$err = '', ?string $text_start_key = '', ?string $text_end_key = '', ?string $ai_api_user_key = null, ?string $ai_api_token = null): ?array {
 
 		if (!($ai_api_user_key && $ai_api_token))
 			return [false];
@@ -588,30 +676,14 @@ class JWTWpAPI {
 			$all_categories_ids = [];
 			$documents = [];
 			foreach ($all_categories as $cat_id => $cat) {
-				$all_categories_ids[] = (int)$cat_id;
-				$documents[] = $this->get_category_path_name($cat, $all_categories);
+				$cat_name = trim($this->get_category_path_name($cat, $all_categories, false, ' / ', '', ['EVENTI']));
+				if ($cat_name) {
+					$all_categories_ids[] = (int)$cat_id;
+					$documents[] = $cat_name;
+				}
 			}
 			if (!empty($documents)) {
-				$html_content = new \Html2Text\Html2Text($post->content, array('do_links' => 'none', 'width' => 0));
-				$text_content = $html_content->getText();
-				$text_content = str_ireplace('[Immagine]', '', $text_content);
-				if ($text_start_key) {
-/*					
-					$pos1 = strpos(utf8_encode($text_content), utf8_encode($text_start_key));
-					if ($pos1 !== false) {
-						$text_content = trim(mb_substr(utf8_encode($text_content), $pos1 + mb_strlen(utf8_encode($text_start_key), 'UTF-8'), null, 'UTF-8'));
-					}
-*/
-					$pos1 = strpos($text_content, $text_start_key);
-					if ($pos1 !== false) {
-						$text_content = trim(substr($text_content, $pos1 + strlen($text_start_key)));
-					}
-					$pos1 = strpos($text_content, $text_end_key);
-					if ($pos1 !== false) {
-						$text_content = trim(substr($text_content, 0, $pos1));
-					}
-				}
-				$text_content = trim($text_content);
+				$text_content = $post->get_text_content($text_start_key, $text_end_key);
 				$query = "{$post->title}. $text_content";
 				$docs_text_content = json_encode($documents, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
 				$postdata = ['query' => $query, 'docs' => $docs_text_content, 'token' => get_token($ai_api_user_key, $ai_api_token)];
@@ -625,16 +697,11 @@ class JWTWpAPI {
 
 				$res = trim($res);
 
-//echo '<p>res = ' . $res . '</p><br><br>';	// debug
-
 				if ($res) {
 					$result = json_decode($res, true);
 					if (!empty($result['message']))
 						$result['error'] = $result['message'];
 					if ((!empty($result)) && empty($result["error"])) {
-
-echo '<p>[630] result = ' . print_r($result, true) . '</p><br><br>';	// debug
-
 						$result = $result['data'];
 						$categories = [];
 						foreach ($result as $cat_index) {
@@ -644,9 +711,24 @@ echo '<p>[630] result = ' . print_r($result, true) . '</p><br><br>';	// debug
 									$categories[] = $new_cat;
 							}
 						}
-						$post->categories = $categories;	
-						$result = $categories;
+
+						$cats_res = [];
+						for ($i = 0; $i < count($categories); $i++) {
+							for ($x = 0; $x < count($categories); $x++) {
+								if ($categories[$x] && ($x !== $i) && $this->chk_parent_and_child($categories[$i], $categories[$x], $all_categories)) {
+									$categories[$i] = false;
+								}
+							}
+							if ($categories[$i])
+								$cats_res[] = $categories[$i];
+						}
+						
+						$post->categories = $cats_res;	
+						$result = $cats_res;
 					} else {
+
+						echo '<p>[ERRORE!!] ' . $result["error"] . '</p><br><br>';	// debug
+
 						$post->categories = null;
 						$result = [false];
 					}
@@ -663,7 +745,10 @@ echo '<p>[630] result = ' . print_r($result, true) . '</p><br><br>';	// debug
 
 	}
 
-	private function get_category_path_name(WpCategory $category, ?array $categories = null, bool $full_path = false, string $sep = ' / ', string $exclude_str = ''): string {
+	private function get_category_path_name(WpCategory $category, ?array $categories = null, bool $full_path = false, string $sep = ' / ', string $exclude_str = '', array $black_list = []): string {
+
+		if (in_array($category->name, $black_list, true))
+			return '';
 
 		if ($full_path && $category->parent_id) {
 			if ($categories === null)
@@ -671,8 +756,11 @@ echo '<p>[630] result = ' . print_r($result, true) . '</p><br><br>';	// debug
 			if (empty($categories))
 				return str_replace($exclude_str, '', $category->name);
 			foreach ($categories as $id => $cat) {
-				if ($id === ((int)$category->parent_id))
-					return $this->get_category_path_name($cat, $categories, $sep) . $sep . str_replace($exclude_str, '', $category->name);
+				if ($id === ((int)$category->parent_id)) {
+					if (in_array($cat->name, $black_list, true))
+						return '';
+					return $this->get_category_path_name($cat, $categories, $full_path, $sep, $exclude_str,$black_list) . $sep . str_replace($exclude_str, '', $category->name);
+				}
 			}
 			return str_replace($exclude_str, '', $category->name);
 		} else {
