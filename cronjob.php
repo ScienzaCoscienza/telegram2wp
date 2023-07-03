@@ -179,7 +179,7 @@ function process_link_post($content_link) {
 
 
 										$str_comp_len = ((int)(strlen($excerpt) / 2));
-										$text_content = $post->get_text_content('[pollyness]', 'Fonte: ');
+										$text_content = $post->get_text_content('<!-- END SUMMARY -->', 'Fonte: ');
 										if (strtoupper(substr($excerpt, 0, $str_comp_len)) === strtoupper(substr($text_content, 0, $str_comp_len))) {
 											$post->excerpt = "DESCRIZIONE UGUALE";
 										}
@@ -210,21 +210,20 @@ function process_link_post($content_link) {
 										$post->categories = $res;
 										$extra_data['meta']['wp_firstcat_cetegory_id'] = (int)$post->categories[0];
 										
-$tmp_cat = $JWTWpAPI->categories();
-$tmp_res = [];
-foreach($res as $tmp_r) {
-	$tmp_r = (int)$tmp_r;
-	if (empty($tmp_cat[$tmp_r])) {
-		echo "<p>[ERRORE][205] indice $tmp_r inesistente.</p>";
-	} else {
-		$new_item = ['indice' => $tmp_r, 'nome' => $tmp_cat[$tmp_r]->name];
-		$tmp_res[] = $new_item;
-	}
-}
-echo "<p>[CATS] [{$post->title}] " . print_r($tmp_res, true) . "</p>";
-
-
-										if ((count($post->categories) > 1) && ($post->status === 'publish')) {
+										$tmp_cat = $JWTWpAPI->categories();
+										$tmp_res = [];
+										foreach($res as $tmp_r) {
+											$tmp_r = (int)$tmp_r;
+											if (empty($tmp_cat[$tmp_r])) {
+												echo "<p>[ERRORE][205] indice $tmp_r inesistente.</p>";
+											} else {
+												$new_item = ['indice' => $tmp_r, 'nome' => $tmp_cat[$tmp_r]->name];
+												$tmp_res[] = $new_item;
+											}
+										}
+										echo "<p>[CATS] " . date("Y-m-d H:i:s") . " [{$post->title}] " . print_r($tmp_res, true) . "</p>";
+										
+										/* if ((count($post->categories) > 1) && ($post->status === 'publish')) {
 											$post->status = 'draft';
 											$res = $JWTWpAPI->create_post($post, $err, true, $extra_data);
 											if ($res) {
@@ -233,7 +232,8 @@ echo "<p>[CATS] [{$post->title}] " . print_r($tmp_res, true) . "</p>";
 											}
 										} else {
 											$res = $JWTWpAPI->create_post($post, $err, true, $extra_data);
-										}
+										}*/
+										$res = $JWTWpAPI->create_post($post, $err, true, $extra_data);
 
 										if ($res) {
 											return true;
@@ -443,7 +443,9 @@ function filter_content($content) {
 	$content = str_ireplace('class="code-block', 'class="hidden code-block', $content);
 /* [END]> ilparagone.it */	
 
-	return '[pollyness] ' . trim($content);
+	$content = trim($content);
+	$summary_html = get_summary_html($content);
+	return '[pollyness] ' . '<!-- START SUMMARY -->' . $summary_html . '<!-- END SUMMARY -->' . $content;
 	
 }
 
@@ -590,4 +592,38 @@ function get_env_var($var_name, $raise_err = true) {
 
 	return $result;
 
+}
+
+function get_summary_html($text_to_summarize, $min_words = 500) {
+
+	$html = '';
+
+	$html_content = new \Html2Text\Html2Text($text_to_summarize, array('do_links' => 'none', 'width' => 0));
+	$text_to_summarize = $html_content->getText();
+	$text_to_summarize = str_ireplace('[Immagine]', '', $text_to_summarize);
+	$text_to_summarize = trim($text_to_summarize);
+
+	if (str_word_count($text_to_summarize) >= $min_words) {
+		$content = "Riassumi il testo che segue in modo che sia comprensibile a un bambino di 10 anni. Rispondi solo con il riassunto. Ecco il testo: \r\n" . $text_to_summarize;
+		$query = [(object)['role' => 'user', 'content' => $content]];
+		$postdata = ['query' => json_encode($query), 'token' => get_token(get_env_var('AI_API_USER_KEY'), get_env_var('AI_API_TOKEN'))];
+		$err = '';
+		$res = wpap_curl_post(AI_CHAT_API_URL, $postdata, array(), $err);	
+		$res = trim($res);
+		if ($res) {
+			$result = json_decode($res, true);
+			if (!empty($result['message']))
+				$result['error'] = $result['message'];
+			if ((!empty($result)) && empty($result["error"])) {
+				$html = $result['data'];
+			}
+		}
+	}
+
+	if ($html) {
+		$html = "<div class=\"wp-block-uagb-info-box uagb-block-80353057 uagb-infobox__content-wrap  uagb-infobox-icon-above-title uagb-infobox-image-valign-top\"><div class=\"uagb-ifb-content\"><div class=\"uagb-ifb-icon-wrap\"><svg xmlns=\"https://www.w3.org/2000/svg\" viewBox=\"0 0 512 512\"><path d=\"M0 256C0 114.6 114.6 0 256 0C397.4 0 512 114.6 512 256C512 397.4 397.4 512 256 512C114.6 512 0 397.4 0 256zM371.8 211.8C382.7 200.9 382.7 183.1 371.8 172.2C360.9 161.3 343.1 161.3 332.2 172.2L224 280.4L179.8 236.2C168.9 225.3 151.1 225.3 140.2 236.2C129.3 247.1 129.3 264.9 140.2 275.8L204.2 339.8C215.1 350.7 232.9 350.7 243.8 339.8L371.8 211.8z\"></path></svg></div><div class=\"uagb-ifb-title-wrap\"><h3 class=\"uagb-ifb-title\">Spiegato semplice</h3></div><p class=\"uagb-ifb-desc\">$html</p></div></div><span class=\"ab-hidden-text-tts\">Fine spiegato semplice.</span>";
+	}
+
+	return $html;
+		
 }
