@@ -198,10 +198,14 @@ function process_link_post($content_link) {
 												$the_tags = [];
 											$the_tags[] = $domain;
 										}
+										if ($the_tags === null)
+											$the_tags = [];
+										$err = '';
+										$JWTWpAPI = new JWTWpAPI(WP_WEBSITE_TARGET_URL, $wp_website_target_user, $wp_website_target_password, false);
+										$res = $JWTWpAPI->add_post_tags($post, $err, '[pollyness]', 'Fonte: ', get_env_var('AI_API_USER_KEY'), get_env_var('AI_API_TOKEN'));
+										$the_tags = array_values(array_unique(array_merge($the_tags, $res)));
 										$post->tags = $the_tags;
 										$post->featured_media_url = $featured_image;
-										$JWTWpAPI = new JWTWpAPI(WP_WEBSITE_TARGET_URL, $wp_website_target_user, $wp_website_target_password, false);
-										$err = '';
 										$extra_data = [];
 										$extra_data['_yoast_wpseo_metadesc'] = $excerpt;
 										$extra_data['meta'] = [];

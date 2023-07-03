@@ -664,6 +664,44 @@ class JWTWpAPI {
 		return false;
 	}
 
+	public function add_post_tags(WpPost $post, ?string &$err = '', ?string $text_start_key = '', ?string $text_end_key = '', ?string $ai_api_user_key = null, ?string $ai_api_token = null): ?array {
+
+		if (!($ai_api_user_key && $ai_api_token))
+			return [];
+			
+		$result = [];
+
+		$query = [(object)['role' => 'system', 'content' => "Sei un giornalista e blogger esperto di SEO che scrive su un blog online di notizie sull'attualità ottimizzando i testi per la SEO."]];
+		$text_content = $post->get_text_content($text_start_key, $text_end_key);
+		$user_text = "Trova un massimo di 10 tra i migliori tag per il testo seguente. Rispondi solo elencando i tag separati da virgola. Ecco il testo: \r\n" . $text_content;
+		$query[] = (object)['role' => 'user', 'content' => $user_text];
+		$postdata = ['query' => json_encode($query), 'token' => get_token($ai_api_user_key, $ai_api_token)];
+		$err = '';
+		$res = wpap_curl_post(AI_CHAT_API_URL, $postdata, array(), $err);	
+		$res = trim($res);
+
+		if ($res) {
+			$result = json_decode($res, true);
+			if (!empty($result['message']))
+				$result['error'] = $result['message'];
+			if ((!empty($result)) && empty($result["error"])) {
+				$tags = $result['data'];
+			}
+		}
+	
+		if ($tags) {
+			$tags = explode(',', $tags);
+			if ((!empty($tags)) && is_array($tags)) {
+				foreach ($tags as $tag) {
+					$result[] = trim($tag);
+				}
+			}
+		}
+	
+		return $result;
+
+	}
+
 	public function add_post_categories(WpPost $post, ?string &$err = '', ?string $text_start_key = '', ?string $text_end_key = '', ?string $ai_api_user_key = null, ?string $ai_api_token = null): ?array {
 
 		if (!($ai_api_user_key && $ai_api_token))
