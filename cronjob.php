@@ -198,7 +198,7 @@ function process_link_post($content_link) {
 												$the_tags = [];
 											$the_tags[] = $domain;
 										}
-										if ($the_tags === null)
+										if (!is_array($the_tags))
 											$the_tags = [];
 										$err = '';
 										$JWTWpAPI = new JWTWpAPI(WP_WEBSITE_TARGET_URL, $wp_website_target_user, $wp_website_target_password, false);

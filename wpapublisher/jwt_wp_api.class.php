@@ -686,18 +686,20 @@ class JWTWpAPI {
 				$result['error'] = $result['message'];
 			if ((!empty($result)) && empty($result["error"])) {
 				$tags = $result['data'];
-			}
-		}
-	
-		if ($tags) {
-			$tags = explode(',', $tags);
-			if ((!empty($tags)) && is_array($tags)) {
-				foreach ($tags as $tag) {
-					$result[] = trim($tag);
+				if ($tags) {
+					$tags = explode(',', $tags);
+					if ((!empty($tags)) && is_array($tags)) {
+						foreach ($tags as $tag) {
+							$result[] = trim($tag);
+						}
+					}
 				}
 			}
 		}
-	
+		
+		if (!is_array($result))
+			$result = [];
+
 		return $result;
 
 	}
@@ -726,13 +728,8 @@ class JWTWpAPI {
 				$docs_text_content = json_encode($documents, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
 				$postdata = ['query' => $query, 'docs' => $docs_text_content, 'token' => get_token($ai_api_user_key, $ai_api_token)];
 				$err = '';
-
-				if (RELEASE_TARGET == 'dev') {
-					$res = wpap_curl_post(AI_SEARCH_API_URL, $postdata, array(), $err);	
-				} else {
-					$res = wpap_curl_post(AI_SEARCH_API_URL, $postdata, array(), $err, array(), false);	
-				}
-
+				
+				$res = wpap_curl_post(AI_SEARCH_API_URL, $postdata, array(), $err);
 				$res = trim($res);
 
 				if ($res) {
@@ -765,7 +762,11 @@ class JWTWpAPI {
 						$result = $cats_res;
 					} else {
 
-						echo '<p>[ERRORE!!] ' . $result["error"] . '</p><br><br>';	// debug
+						if (empty($result['error'])) {
+							echo '<p>[ERRORE!!] Generico</p><br><br>';	// debug
+						} else {
+							echo '<p>[ERRORE!!] ' . $result["error"] . '</p><br><br>';	// debug
+						}
 
 						$post->categories = null;
 						$result = [false];
