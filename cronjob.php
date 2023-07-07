@@ -610,7 +610,7 @@ function get_env_var($var_name, $raise_err = true) {
 
 }
 
-function get_summary_html($text_to_summarize, $min_words = 500) {
+function get_summary_html($text_to_summarize, $min_words = 300) {
 
 	$html = '';
 
