@@ -90,11 +90,23 @@ function clean_rss_item_reg() {
 	
 }
 
-function process_rss_item($item) {
+function filter_rss_title($title) {
+
+	$title = trim(str_replace('...', '', trim($title)));
+	$pos = strpos($title, " ");
+
+	if ($pos !== false) {
+		$title = substr($title, 0, $pos);  // Estrai la parte della stringa fino al carattere
+	}
 	
+	return trim($title);
+}
+
+function process_rss_item($item) {
+
 	if (is_array($item) && (!empty($item['title']))) {
-		$title = $item['title'];
-		if (filter_var(str_replace('...', '', trim($title)), FILTER_VALIDATE_URL)) {
+		$title = filter_rss_title($item['title']);
+		if (filter_var($title, FILTER_VALIDATE_URL)) {
 			$content_link = extract_content_url($item['description']);
 			return process_link_post($content_link);
 		} else {
