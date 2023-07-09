@@ -459,6 +459,10 @@ function filter_content($content) {
 	$content = str_ireplace('class="code-block', 'class="hidden code-block', $content);
 /* [END]> ilparagone.it */	
 
+/* [START]> maurizioblondet.it */	
+	$content = str_ireplace('class="external external_icon"', 'class="hidden"', $content);
+/* [END]> maurizioblondet.it */	
+
 	$content = trim($content);
 	$summary_html = get_summary_html($content);
 	return '[pollyness] ' . '<!-- START SUMMARY -->' . $summary_html . '<!-- END SUMMARY -->' . $content;
