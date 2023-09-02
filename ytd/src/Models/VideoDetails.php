@@ -53,6 +53,10 @@ class VideoDetails
     {
         return Utils::arrayGet($this->videoDetails, 'thumbnail');
     }
+    public function getChannelName()
+    {
+        return Utils::arrayGet($this->videoDetails, 'author', '');
+    }
 /* [END] Andrea Barbagallo */	
 	
 }

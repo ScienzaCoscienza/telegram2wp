@@ -75,9 +75,11 @@ class WpPost {
 			if ($pos1 !== false) {
 				$text_content = trim(substr($text_content, $pos1 + strlen($text_start_key)));
 			}
-			$pos1 = strpos($text_content, $text_end_key);
-			if ($pos1 !== false) {
-				$text_content = trim(substr($text_content, 0, $pos1));
+			if ($text_end_key) {
+				$pos1 = strpos($text_content, $text_end_key);
+				if ($pos1 !== false) {
+					$text_content = trim(substr($text_content, 0, $pos1));
+				}
 			}
 		}
 		$text_content = trim($text_content);
@@ -197,10 +199,13 @@ class JWTWpAPI {
 				if (!empty($extra_data))
 					$post_data = array_merge($post_data, $extra_data);
 				$res = wpap_curl_post($this->_url . $this->_endpoint . 'posts', $post_data, null, $err, $this->_header);
+
+				sleep(5);
+
 				if ($res) {
 					$token_raw_data = json_decode($res, TRUE);
 					if (empty($token_raw_data)) {
-						$err = 'Bad JSON result data.';
+						$err = "Bad JSON result data ([" . gettype($res) . "] $res).";
 					} else {
 						if (empty($token_raw_data['message'])) {
 							if (!empty($token_raw_data['id']))
@@ -677,8 +682,17 @@ class JWTWpAPI {
 		$query[] = (object)['role' => 'user', 'content' => $user_text];
 		$postdata = ['query' => json_encode($query), 'token' => get_token($ai_api_user_key, $ai_api_token)];
 		$err = '';
+
+		sleep(5);
+
+
+ab_log("[ADD_POST_TAGS] 100 postdata = " . print_r($postdata, true));	// debug
+
 		$res = wpap_curl_post(AI_CHAT_API_URL, $postdata, array(), $err);	
 		$res = trim($res);
+
+ab_log("[ADD_POST_TAGS] 200 err = $err; res = $res");	// debug
+
 
 		if ($res) {
 			$result = json_decode($res, true);
@@ -729,6 +743,8 @@ class JWTWpAPI {
 				$postdata = ['query' => $query, 'docs' => $docs_text_content, 'token' => get_token($ai_api_user_key, $ai_api_token)];
 				$err = '';
 				
+				sleep(5);
+
 				$res = wpap_curl_post(AI_SEARCH_API_URL, $postdata, array(), $err);
 				$res = trim($res);
 

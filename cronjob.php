@@ -236,9 +236,7 @@ function process_youtube_post($link_to_video, $image_url, $desc) {
 			$video_url = $video_files[0];
 			$desc = $video_infos->getShortDescription();
 			$desc = str_replace("\n", NEW_LINE_REPLACEMENT, $desc);
-			$channel = '';
-			if (!empty($video_infos->author))
-				$channel = $video_infos->author;
+			$channel = $video_infos->getChannelName();
 			$data_ext = json_encode(	[
 											'smartdownloader' => 1, 
 											'image_url' => $image_url, 
@@ -445,6 +443,10 @@ function filter_content($content, $add_audio = true) {
 	if ($pos1 !== false) {
 		$content = substr($content, 0, $pos1);
 	}	
+	$pos1 = strpos($content, '<div><label>Fai una donazione.');
+	if ($pos1 !== false) {
+		$content = substr($content, 0, $pos1);
+	}	
 /* <[END] sabinopaciolla.com */		
 
 /* [START]> scenarieconomici.it */	
@@ -577,7 +579,23 @@ function filter_content($content, $add_audio = true) {
 /* [START]> Canale YT Border Nights */	
 	$content = str_ireplace('Sottotitoli e revisione a cura di QTSS.', '', $content);
 	$content = str_ireplace('Sottotitoli e revisione a cura di QTSS', '', $content);
+	$content = str_ireplace('Sottotitoli creati dalla comunità Amara.org.', '', $content);
+	$content = str_ireplace('Sottotitoli creati dalla comunità Amara.org', '', $content);
+	$content = str_ireplace('- 1 Minute News.', '', $content);
+	$content = str_ireplace('- 1 Minute News', '', $content);
+	$content = str_ireplace('– 1 Minute News.', '', $content);
+	$content = str_ireplace('– 1 Minute News', '', $content);
 /* <[END] Canale YT Border Nights */
+
+/* [START]> Libro di Nicolai Lilin */	
+	$content = str_ireplace('La guerra e l&#8217;odio', '<a href="https://amzn.to/45oSvbo" target="_blank" rel="nofollow sponsored noreferrer noopener"><b>La guerra e l&#8217;odio</b></a>', $content);
+	$content = str_ireplace("La guerra e l'odio", '<a href="https://amzn.to/45oSvbo" target="_blank" rel="nofollow sponsored noreferrer noopener"><b>La guerra e l\'odio</b></a>', $content);
+	$content = str_ireplace("La guerra e l’odio", '<a href="https://amzn.to/45oSvbo" target="_blank" rel="nofollow sponsored noreferrer noopener"><b>La guerra e l\'odio</b></a>', $content);
+	if ((strpos($content, "La guerra e l'odio") !== false) || (strpos($content, "La guerra e l’odio") !== false) || (strpos($content, 'La guerra e l&#8217;odio') !== false)) {
+		$book = '<div style="width:100%;"><br><br><center><iframe sandbox="allow-popups allow-scripts allow-modals allow-forms allow-same-origin" style="width:120px;height:240px;" marginwidth="0" marginheight="0" scrolling="no" frameborder="0" src="//rcm-eu.amazon-adsystem.com/e/cm?lt1=_blank&bc1=000000&IS2=1&bg1=FFFFFF&fc1=000000&lc1=0000FF&t=bacheca-ss-21&language=it_IT&o=29&p=8&l=as4&m=amazon&f=ifr&ref=as_ss_li_til&asins=8856687690&linkId=c5061c5014504371ec3357ea5cdfaa95"></iframe></center></div>';
+		$content .= $book;		
+	}
+/* [END]> Libro di Nicolai Lilin */	
 
 	$content = trim($content);
 	$summary_html = get_summary_html($content);
@@ -679,6 +697,9 @@ function strpos_($haystack, $needle, $offset = 0, $resultIfFalse = false) {
 }
 
 function filter_excerpt($excerpt) {
+
+	$excerpt = str_ireplace('\u0022', '"', $excerpt);
+	$excerpt = str_ireplace('u0022', '"', $excerpt);
 	
 /* [START]> nicolaporro.it */	
 	$excerpt = str_replace('Dimensioni testo', '', $excerpt);
@@ -688,8 +709,31 @@ function filter_excerpt($excerpt) {
 	$excerpt = str_replace('Ascolta la versione audio dell&#039;articolo 2&#039; di lettura', '', $excerpt);
 /* <[END] ilsole24ore.com */	
 
+/* [START]> Canale YT Border Nights */	
+	$excerpt = str_ireplace('– 1 Minute News.', '', $excerpt);
+	$excerpt = str_ireplace('– 1 Minute News', '', $excerpt);
+	$excerpt = str_ireplace('- 1 Minute News.', '', $excerpt);
+	$excerpt = str_ireplace('- 1 Minute News', '', $excerpt);
+/* [END]> Canale YT Border Nights */	
+
+/* [START]> Canale YT Nicolai Lilin */		
+	$res = explode('Per approfondire questa e altre notizie', $excerpt);
+	if (is_array($res) && (count($res) > 1)) {
+		$excerpt = trim($res[0]);
+	}	
+/* [END]> Canale YT Nicolai Lilin */		
+
+/* [START]> Canale YT Border Nights */		
+	$res = explode('Se ti piace Border Nights', $excerpt);
+	if (is_array($res) && (count($res) > 1)) {
+		$excerpt = trim($res[0]);
+	}	
+/* [END]> Canale YT Border Nights */		
+
+	$excerpt = str_replace('#', '', $excerpt);
+
 	return trim($excerpt);
-	
+
 }
 
 function filter_title($title) {
@@ -709,6 +753,8 @@ function filter_title($title) {
 	$title = str_ireplace(' - Imola Oggi', '', $title);
 	$title = str_ireplace(' • Imola Oggi', '', $title);
 	$title = str_ireplace(' - 1 Minute News', '', $title);
+	$title = str_ireplace('\u0022', '"', $title);
+	$title = str_ireplace('u0022', '"', $title);
 	
 	return convertToTitleCase(trim($title));
 	
@@ -1002,10 +1048,14 @@ function proc_yt_download_url(array $data) {
 				$file_size = (int)$data['file_size'];
 			$desc = null;
 			if (!empty($data['desc']))
-				$desc = trim($data['desc']);
+				$desc = trim(filter_excerpt($data['desc']));
 			$tags = null;
-			if (!empty($data['tags']))
-				$tags = $data['tags'];
+			if ((!empty($data['tags'])) && is_array($data['tags'])) {
+				$tags = [];
+				foreach ($data['tags'] as $tag_item) {
+					$tags[] = str_replace('#', '', $tag_item);
+				}
+			}
 			if (YTD_MEDIA_MAX_SIZE && ($file_size > YTD_MEDIA_MAX_SIZE))
 				throw new Exception("$file_size exceeded YT media max size.");
 			if (!filter_var($download_url, FILTER_VALIDATE_URL))
@@ -1032,9 +1082,15 @@ function proc_yt_download_url(array $data) {
 			}	
 			if (empty($result['error'])) {
 				if ($transcript) {
+					if (false && (!empty($result['tmpFileName']))) {
+						$tmp_file = trim($result['tmpFileName']);					
+						$postdata = ['tmpFileName' => $tmp_file];
+						wpap_curl_post(AI_STT_API_URL, $postdata, [CURLOPT_RETURNTRANSFER => 0, CURLOPT_TIMEOUT => 3], $err);
+					}
 					$video_html = get_yt_video_embed_html($video_url);
 					if ($video_html) {
 						$desc = trim($desc);
+						$desc_html = '';
 						if ($desc) {
 							$desc_html = str_replace(NEW_LINE_REPLACEMENT, '<br>', $desc);
 							$desc_html = "<p>$desc_html</p>";
@@ -1062,13 +1118,20 @@ function proc_yt_download_url(array $data) {
 								$the_tags[] = $data['channel'];
 							$the_tags[] = 'Video';
 							$the_tags[] = 'YouTube';
-							$the_tags = $the_tags + $tags;
+							if (is_array($tags))
+								$the_tags = array_merge($the_tags, $tags);
 							$err = '';
 							$wp_website_target_user = get_env_var('SC_WP_ADMIN_USER');
 							$wp_website_target_password = get_env_var('SC_WP_ADMIN_PWD');
 							$JWTWpAPI = new JWTWpAPI(WP_WEBSITE_TARGET_URL, $wp_website_target_user, $wp_website_target_password, false);
 							$res = $JWTWpAPI->add_post_tags($post, $err, '', '', get_env_var('AI_API_USER_KEY'), get_env_var('AI_API_TOKEN'));
-							$the_tags = array_values(array_unique(array_merge($the_tags, $res)));
+							if (isset($res['data']))
+								unset($res['data']);
+							if (is_array($res))
+								$the_tags = array_values(array_unique(array_merge($the_tags, $res)));
+
+ab_log("[PROC_YT_DOWNLOAD_URL] [$title] 100 the_tags = " . print_r($the_tags, true));	// debug
+
 							$post->tags = $the_tags;
 							$post->featured_media_url = $image_url;
 							$extra_data = [];
@@ -1076,6 +1139,9 @@ function proc_yt_download_url(array $data) {
 							$extra_data['meta'] = [];
 							$extra_data['meta']['_yoast_wpseo_metadesc'] = $desc;
 							$res = $JWTWpAPI->add_post_categories($post, $err, '', '', get_env_var('AI_API_USER_KEY'), get_env_var('AI_API_TOKEN'));
+
+ab_log("[PROC_YT_DOWNLOAD_URL] [$title] 200 res = " . print_r($res, true));	// debug
+
 							$post->categories = $res;
 							$extra_data['meta']['wp_firstcat_cetegory_id'] = (int)$post->categories[0];
 							$res = $JWTWpAPI->create_post($post, $err, true, $extra_data);
