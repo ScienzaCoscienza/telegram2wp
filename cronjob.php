@@ -324,7 +324,15 @@ function process_link_post($content_link) {
 										$err = '';
 										$JWTWpAPI = new JWTWpAPI(WP_WEBSITE_TARGET_URL, $wp_website_target_user, $wp_website_target_password, false);
 										$res = $JWTWpAPI->add_post_tags($post, $err, '[pollyness]', 'Fonte: ', get_env_var('AI_API_USER_KEY'), get_env_var('AI_API_TOKEN'));
+										
+ab_log("[PROCESS_LINK_POST][$title] 100 the_tags = " . print_r($the_tags, true));	// debug
+ab_log("[PROCESS_LINK_POST] 200 res = " . print_r($res, true));	// debug
+
+										
 										$the_tags = array_values(array_unique(array_merge($the_tags, $res)));
+										
+ab_log("[PROCESS_LINK_POST] 300 the_tags = " . print_r($the_tags, true));	// debug
+
 										$post->tags = $the_tags;
 										$post->featured_media_url = $featured_image;
 										$extra_data = [];
@@ -332,21 +340,25 @@ function process_link_post($content_link) {
 										$extra_data['meta'] = [];
 										$extra_data['meta']['_yoast_wpseo_metadesc'] = $excerpt;
 										$res = $JWTWpAPI->add_post_categories($post, $err, '[pollyness]', 'Fonte: ', get_env_var('AI_API_USER_KEY'), get_env_var('AI_API_TOKEN'));
-										$post->categories = $res;
-										$extra_data['meta']['wp_firstcat_cetegory_id'] = (int)$post->categories[0];
-										
-										$tmp_cat = $JWTWpAPI->categories();
-										$tmp_res = [];
-										foreach($res as $tmp_r) {
-											$tmp_r = (int)$tmp_r;
-											if (empty($tmp_cat[$tmp_r])) {
-												echo "<p>[ERRORE][205] indice $tmp_r inesistente.</p>";
-											} else {
-												$new_item = ['indice' => $tmp_r, 'nome' => $tmp_cat[$tmp_r]->name];
-												$tmp_res[] = $new_item;
+										if (empty($res)) {
+ab_log("[PROCESS_LINK_POST][$title] 350 err = $err");	// debug
+											echo "<p>[CATS] " . date("Y-m-d H:i:s") . " [{$post->title}] ERRORE: $err</p>";
+										} else {
+											$post->categories = $res;
+											$extra_data['meta']['wp_firstcat_cetegory_id'] = (int)$post->categories[0];
+											$tmp_cat = $JWTWpAPI->categories();
+											$tmp_res = [];
+											foreach($res as $tmp_r) {
+												$tmp_r = (int)$tmp_r;
+												if (empty($tmp_cat[$tmp_r])) {
+													echo "<p>[ERRORE][205] indice $tmp_r inesistente.</p>";
+												} else {
+													$new_item = ['indice' => $tmp_r, 'nome' => $tmp_cat[$tmp_r]->name];
+													$tmp_res[] = $new_item;
+												}
 											}
+											echo "<p>[CATS] " . date("Y-m-d H:i:s") . " [{$post->title}] " . print_r($tmp_res, true) . "</p>";
 										}
-										echo "<p>[CATS] " . date("Y-m-d H:i:s") . " [{$post->title}] " . print_r($tmp_res, true) . "</p>";
 										
 										/* if ((count($post->categories) > 1) && ($post->status === 'publish')) {
 											$post->status = 'draft';
@@ -381,6 +393,59 @@ function process_link_post($content_link) {
 }
 
 function filter_content($content, $add_audio = true) {
+
+	if (!function_exists('comedonchisciotte')) {
+
+		function comedonchisciotte($html) {
+
+			global $wp_website_target_user, $wp_website_target_password;
+
+		/* METTO TUTTE LE URL DELLE IMMAGINI IN $array1 */			
+			$array1 = explode('<img', $html);
+
+			if (is_array($array1)) {
+				$array2 = [];
+				foreach ($array1 as $item1) {
+					if (strpos($item1, 'wp-image') !== false)
+						$array2[] = $item1;
+				}
+				$array1 = [];
+				foreach ($array2 as $item2) {
+					$pos1 = strpos($item2, 'src="');
+					if ($pos1) {
+						$pos1 += 5;
+						$pos2 = strpos($item2, '"', $pos1);
+						$url = substr($item2, $pos1, $pos2 - $pos1);
+						if (filter_var($url, FILTER_VALIDATE_URL))
+							$array1[] = $url;						
+					}
+				}
+			}
+
+		/* AGGIUNGO LE IMMAGINI A WP */
+
+			$wp = new JWTWpAPI(WP_WEBSITE_TARGET_URL, $wp_website_target_user, $wp_website_target_password, false);			
+			$images_list = [];
+
+			foreach ($array1 as $img_url) {
+				$err = '';
+				$wp_url = '';
+				$img_id = $wp->create_media($img_url, '', $err, $wp_url);
+				if ($img_id)
+					$images_list[] = ['source' => $img_url, 'dest' => $wp_url];
+			}
+
+		/* SOSTITUISCO LE URL DELLE IMMAGINI */
+
+			foreach ($images_list as $img) {
+				$html = str_ireplace($img['source'], $img['dest'], $html);
+			}
+
+			return $html;
+
+		}
+
+	}
 
 /* [START]> lindipendente.online */	
 	if (strpos($content, 'Senza-titolo-3.png') !== false)
@@ -422,6 +487,7 @@ function filter_content($content, $add_audio = true) {
 		$content = str_ireplace('<p><strong>FONTI:</strong></p>', '', $content);
 		$content = str_ireplace('class="post-author-avatar', 'class="hidden post-author-avatar', $content);
 		$content = str_ireplace('class="post-author-bio', 'class="hidden post-author-bio', $content);
+		$content = comedonchisciotte($content);
 	}	
 /* <[END] comedonchisciotte.org */	
 
@@ -710,6 +776,10 @@ function filter_excerpt($excerpt) {
 /* <[END] ilsole24ore.com */	
 
 /* [START]> Canale YT Border Nights */	
+	$res = explode('Se ti piace Border Nights', $excerpt);
+	if (is_array($res) && (count($res) > 1)) {
+		$excerpt = trim($res[0]);
+	}
 	$excerpt = str_ireplace('– 1 Minute News.', '', $excerpt);
 	$excerpt = str_ireplace('– 1 Minute News', '', $excerpt);
 	$excerpt = str_ireplace('- 1 Minute News.', '', $excerpt);
@@ -723,12 +793,12 @@ function filter_excerpt($excerpt) {
 	}	
 /* [END]> Canale YT Nicolai Lilin */		
 
-/* [START]> Canale YT Border Nights */		
-	$res = explode('Se ti piace Border Nights', $excerpt);
+/* [START]> Canale YT l'Antidiplomatico */		
+	$res = explode('Abbonati al canale', $excerpt);
 	if (is_array($res) && (count($res) > 1)) {
 		$excerpt = trim($res[0]);
-	}	
-/* [END]> Canale YT Border Nights */		
+	}
+/* [END]> Canale YT l'Antidiplomatico */		
 
 	$excerpt = str_replace('#', '', $excerpt);
 
@@ -1130,7 +1200,7 @@ function proc_yt_download_url(array $data) {
 							if (is_array($res))
 								$the_tags = array_values(array_unique(array_merge($the_tags, $res)));
 
-ab_log("[PROC_YT_DOWNLOAD_URL] [$title] 100 the_tags = " . print_r($the_tags, true));	// debug
+// ab_log("[PROC_YT_DOWNLOAD_URL] [$title] 100 the_tags = " . print_r($the_tags, true));	// debug
 
 							$post->tags = $the_tags;
 							$post->featured_media_url = $image_url;
@@ -1140,7 +1210,7 @@ ab_log("[PROC_YT_DOWNLOAD_URL] [$title] 100 the_tags = " . print_r($the_tags, tr
 							$extra_data['meta']['_yoast_wpseo_metadesc'] = $desc;
 							$res = $JWTWpAPI->add_post_categories($post, $err, '', '', get_env_var('AI_API_USER_KEY'), get_env_var('AI_API_TOKEN'));
 
-ab_log("[PROC_YT_DOWNLOAD_URL] [$title] 200 res = " . print_r($res, true));	// debug
+// ab_log("[PROC_YT_DOWNLOAD_URL] [$title] 200 res = " . print_r($res, true));	// debug
 
 							$post->categories = $res;
 							$extra_data['meta']['wp_firstcat_cetegory_id'] = (int)$post->categories[0];
@@ -1324,10 +1394,11 @@ function get_yt_video_embed_html($video_url) {
 	$video_id = getYoutubeVideoId($video_url);
 
 	if ($video_id) {
+/*		return 	"
+			<figure class=\"wp-block-embed is-type-video is-provider-youtube wp-block-embed-youtube wp-embed-aspect-16-9 wp-has-aspect-ratio\"><div class=\"wp-block-embed__wrapper\"><span class=\"embed-youtube\" style=\"text-align:center; display: block;\"><iframe src=\"https://www.youtube.com/embed/$video_id?version=3&amp;rel=1&amp;showsearch=0&amp;showinfo=1&amp;iv_load_policy=1&amp;fs=1&amp;hl=it-IT&amp;autohide=2&amp;wmode=transparent\" class=\"youtube-player _iub_cs_activate _iub_cs_activate-activated\" width=\"1200\" height=\"675\" allowfullscreen=\"true\" style=\"border:0;\" sandbox=\"allow-scripts allow-same-origin allow-popups allow-presentation\" data-iub-purposes=\"3\" async=\"false\"></iframe></span></div></figure>	
+		";	*/
 		return 	"
-			<figure class=\"wp-block-embed is-type-video is-provider-youtube wp-block-embed-youtube wp-embed-aspect-16-9 wp-has-aspect-ratio\"><div class=\"wp-block-embed__wrapper\">
-			<span class=\"embed-youtube\" style=\"text-align:center; display: block;\"><iframe src=\"https://www.youtube.com/embed/$video_id?version=3&amp;rel=1&amp;showsearch=0&amp;showinfo=1&amp;iv_load_policy=1&amp;fs=1&amp;hl=it-IT&amp;autohide=2&amp;wmode=transparent\" class=\"youtube-player _iub_cs_activate _iub_cs_activate-activated\" width=\"1200\" height=\"675\" allowfullscreen=\"true\" style=\"border:0;\" sandbox=\"allow-scripts allow-same-origin allow-popups allow-presentation\" data-iub-purposes=\"3\" async=\"false\"></iframe></span>
-			</div></figure>	
+			<figure class=\"wp-block-embed is-type-video is-provider-youtube wp-block-embed-youtube wp-embed-aspect-16-9 wp-has-aspect-ratio\"><div class=\"wp-block-embed__wrapper\"><span class=\"embed-youtube\" style=\"text-align:center; display: block;\"><iframe class=\"youtube-player\" width=\"1200\" height=\"675\" src=\"https://www.youtube.com/embed/$video_id?version=3&amp;rel=1&amp;showsearch=0&amp;showinfo=1&amp;iv_load_policy=1&amp;fs=1&amp;hl=it-IT&amp;autohide=2&amp;wmode=transparent\" allowfullscreen=\"true\" style=\"border:0;\" sandbox=\"allow-scripts allow-same-origin allow-popups allow-presentation\"></iframe></span></div></figure>				
 		";
 	} else {
 		return null;

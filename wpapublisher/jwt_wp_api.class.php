@@ -429,7 +429,7 @@ class JWTWpAPI {
 
 	}
 
-	public function create_media(string $url, ?string $file_name = '', ?string &$err = ''): ?int {
+	public function create_media(string $url, ?string $file_name = '', ?string &$err = '', ?string &$media_url = ''): ?int {
 
 		try {
 			$proceed = true;
@@ -467,8 +467,11 @@ class JWTWpAPI {
 							$err = "Bad JSON result data ($url).";
 						} else {
 							if (empty($token_raw_data['message'])) {
-								if (!empty($token_raw_data['id']))
+								if (!empty($token_raw_data['id'])) {
+									if (!empty($token_raw_data['source_url']))
+										$media_url = $token_raw_data['source_url'];
 									return (int)$token_raw_data['id'];
+								}
 							} else {
 								$err = $token_raw_data['message'] . " ($url).";
 							}
@@ -488,30 +491,91 @@ class JWTWpAPI {
 
 	private function _implode_tags(?array $tag_list): ?string {
 
+
+ab_log("[_IMPLODE_TAGS] 100 tag_list = " . print_r($tag_list, true));	// debug
+
+		if (!function_exists('delete_ending')) {
+			function delete_ending(string $ending, string $text, bool $case_sensitive = true): string {
+
+				if ($text && $ending) {
+					$new_text = $text;
+					if (!$case_sensitive) {
+						$new_text = strtoupper($new_text);
+						$ending = strtoupper($ending);
+					}
+					$ending_len = strlen($ending);
+					if(substr($new_text, ($ending_len * (-1))) == $ending) {
+						$text = substr($text, 0, strlen($text) - $ending_len);
+					}
+				}
+				
+				return $text;
+				
+			}
+		}
+
 		$result = '';
+		$result_tag_names = '';
 		$cur_tags = $this->tags();
+		
+ab_log("[_IMPLODE_TAGS] 200 cur_tags = " . print_r($cur_tags, true));	// debug
+
 
 		if ($cur_tags) {
 			foreach ($tag_list as $tag) {
 				$new_tag_id = null;
+				$tag = trim($tag);
+				$tag = delete_ending('.', $tag);
+				$tag = delete_ending(',', $tag);
+				$tag = trim($tag);
+		
+ab_log("[_IMPLODE_TAGS] 300 tag = $tag");	// debug
+
 				foreach ($cur_tags as $key => $val) {
+
+					$val = trim($val);
+					$val = delete_ending('.', $val);
+					$val = delete_ending(',', $val);
+					$val = trim($val);	
+
+		
+ab_log("[_IMPLODE_TAGS] 400 val = $val");	// debug
+
 					if (strtolower($val) === strtolower($tag)) {
 						$new_tag_id = $key;
+		
+ab_log("[_IMPLODE_TAGS] 500 new_tag_id = $new_tag_id");	// debug
+
 						break;
 					}
 				}
+		
+ab_log("[_IMPLODE_TAGS] 600");	// debug
+
 				if (!$new_tag_id)
 					$new_tag_id = $this->create_tag($tag);
 				if ($new_tag_id) {
-					if ($result)
-						$result .= ',';
-					$result .= $new_tag_id;
+		
+ab_log("[_IMPLODE_TAGS] 700 new_tag_id = $new_tag_id");	// debug
+
+					if (strpos(strtolower($result_tag_names), strtolower("§{$tag}§")) === false) {
+						if ($result)
+							$result .= ',';
+						$result .= $new_tag_id;
+						$result_tag_names .= "§{$tag}§";
+		
+ab_log("[_IMPLODE_TAGS] 800 result_tag_names = $result_tag_names");	// debug
+
+					}
 				}
 			}
 		}
 
 		if (!$result)
 			$result = null;
+
+		
+ab_log("[_IMPLODE_TAGS] 900 result = $result");	// debug
 
 		return $result;
 
@@ -685,14 +749,8 @@ class JWTWpAPI {
 
 		sleep(5);
 
-
-ab_log("[ADD_POST_TAGS] 100 postdata = " . print_r($postdata, true));	// debug
-
 		$res = wpap_curl_post(AI_CHAT_API_URL, $postdata, array(), $err);	
 		$res = trim($res);
-
-ab_log("[ADD_POST_TAGS] 200 err = $err; res = $res");	// debug
-
 
 		if ($res) {
 			$result = json_decode($res, true);
@@ -700,6 +758,7 @@ ab_log("[ADD_POST_TAGS] 200 err = $err; res = $res");	// debug
 				$result['error'] = $result['message'];
 			if ((!empty($result)) && empty($result["error"])) {
 				$tags = $result['data'];
+				$result = [];
 				if ($tags) {
 					$tags = explode(',', $tags);
 					if ((!empty($tags)) && is_array($tags)) {
