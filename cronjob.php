@@ -324,24 +324,22 @@ function process_link_post($content_link) {
 										$err = '';
 										$JWTWpAPI = new JWTWpAPI(WP_WEBSITE_TARGET_URL, $wp_website_target_user, $wp_website_target_password, false);
 										$res = $JWTWpAPI->add_post_tags($post, $err, '[pollyness]', 'Fonte: ', get_env_var('AI_API_USER_KEY'), get_env_var('AI_API_TOKEN'));
-										
-ab_log("[PROCESS_LINK_POST][$title] 100 the_tags = " . print_r($the_tags, true));	// debug
-ab_log("[PROCESS_LINK_POST] 200 res = " . print_r($res, true));	// debug
-
-										
 										$the_tags = array_values(array_unique(array_merge($the_tags, $res)));
-										
-ab_log("[PROCESS_LINK_POST] 300 the_tags = " . print_r($the_tags, true));	// debug
-
 										$post->tags = $the_tags;
 										$post->featured_media_url = $featured_image;
 										$extra_data = [];
 										$extra_data['_yoast_wpseo_metadesc'] = $excerpt;
 										$extra_data['meta'] = [];
 										$extra_data['meta']['_yoast_wpseo_metadesc'] = $excerpt;
+
+										if (WP_MINUTES_ADD_TO_PUBLISH_TIME) {
+											$curr_timestamp = time();
+											$publish_timestamp = $curr_timestamp + (((int)WP_MINUTES_ADD_TO_PUBLISH_TIME) * 60);
+											$extra_data['date'] = date("Y-m-d H:i:s", $publish_timestamp);
+										}
+
 										$res = $JWTWpAPI->add_post_categories($post, $err, '[pollyness]', 'Fonte: ', get_env_var('AI_API_USER_KEY'), get_env_var('AI_API_TOKEN'));
 										if (empty($res)) {
-ab_log("[PROCESS_LINK_POST][$title] 350 err = $err");	// debug
 											echo "<p>[CATS] " . date("Y-m-d H:i:s") . " [{$post->title}] ERRORE: $err</p>";
 										} else {
 											$post->categories = $res;
@@ -360,16 +358,6 @@ ab_log("[PROCESS_LINK_POST][$title] 350 err = $err");	// debug
 											echo "<p>[CATS] " . date("Y-m-d H:i:s") . " [{$post->title}] " . print_r($tmp_res, true) . "</p>";
 										}
 										
-										/* if ((count($post->categories) > 1) && ($post->status === 'publish')) {
-											$post->status = 'draft';
-											$res = $JWTWpAPI->create_post($post, $err, true, $extra_data);
-											if ($res) {
-												$post->status = 'publish';
-												$res = $JWTWpAPI->modify_post($post, $err, true, $extra_data);
-											}
-										} else {
-											$res = $JWTWpAPI->create_post($post, $err, true, $extra_data);
-										}*/
 										$res = $JWTWpAPI->create_post($post, $err, true, $extra_data);
 
 										if ($res) {
@@ -659,7 +647,7 @@ function filter_content($content, $add_audio = true) {
 	$content = str_ireplace("La guerra e l’odio", '<a href="https://amzn.to/45oSvbo" target="_blank" rel="nofollow sponsored noreferrer noopener"><b>La guerra e l\'odio</b></a>', $content);
 	if ((strpos($content, "La guerra e l'odio") !== false) || (strpos($content, "La guerra e l’odio") !== false) || (strpos($content, 'La guerra e l&#8217;odio') !== false)) {
 		$book = '<div style="width:100%;"><br><br><center><iframe sandbox="allow-popups allow-scripts allow-modals allow-forms allow-same-origin" style="width:120px;height:240px;" marginwidth="0" marginheight="0" scrolling="no" frameborder="0" src="//rcm-eu.amazon-adsystem.com/e/cm?lt1=_blank&bc1=000000&IS2=1&bg1=FFFFFF&fc1=000000&lc1=0000FF&t=bacheca-ss-21&language=it_IT&o=29&p=8&l=as4&m=amazon&f=ifr&ref=as_ss_li_til&asins=8856687690&linkId=c5061c5014504371ec3357ea5cdfaa95"></iframe></center></div>';
-		$content .= $book;		
+		/*	$content .= $book;	*/
 	}
 /* [END]> Libro di Nicolai Lilin */	
 
@@ -799,6 +787,31 @@ function filter_excerpt($excerpt) {
 		$excerpt = trim($res[0]);
 	}
 /* [END]> Canale YT l'Antidiplomatico */		
+
+/* [START]> Canale YT Lafinanzasulweb */		
+	$res = explode('Per sostenerci:', $excerpt);
+	if (is_array($res) && (count($res) > 1)) {
+		$excerpt = trim($res[0]);
+	}
+/* [END]> Canale YT Lafinanzasulweb */		
+
+/* [START]> Canale YT RadioRadioTV */
+	$excerpt_rows = explode(NEW_LINE_REPLACEMENT, $excerpt);
+	if ((!empty($excerpt_rows)) && is_array($excerpt_rows)) {
+		$excerpt = '';
+		$ignore_next_new_line = false;
+		foreach ($excerpt_rows as $excerpt_row) {
+			if ($excerpt && (!$ignore_next_new_line))
+				$excerpt .= NEW_LINE_REPLACEMENT;
+			$ignore_next_new_line = false;
+			if (mb_substr(trim($excerpt_row), 0, 1, 'UTF-8') === '▷') {
+				$ignore_next_new_line = true;
+			} else {
+				$excerpt .= $excerpt_row;
+			}
+		}
+	}
+/* [END]> Canale YT RadioRadioTV */		
 
 	$excerpt = str_replace('#', '', $excerpt);
 
@@ -1134,9 +1147,6 @@ function proc_yt_download_url(array $data) {
 				throw new Exception("Wrong image URL \"$image_url\".");
 			if (!filter_var($video_url, FILTER_VALIDATE_URL))
 				throw new Exception("Wrong YT video URL \"$video_url\".");
-
-//ab_log("[PROC_YT_DOWNLOAD_URL] 200 download_url = $download_url; image_url = $image_url; title = $title; desc = $desc; tags = " . print_r($tags, true) . "; video_url = $video_url; msg = {$data['msg']}");	// debug
-
 			$postdata = ['query' => $download_url, 'token' => get_token(get_env_var('AI_API_USER_KEY'), get_env_var('AI_API_TOKEN'))];
 			$err = '';
 			$res = wpap_curl_post(AI_STT_API_URL, $postdata, array(), $err);	
@@ -1165,7 +1175,22 @@ function proc_yt_download_url(array $data) {
 							$desc_html = str_replace(NEW_LINE_REPLACEMENT, '<br>', $desc);
 							$desc_html = "<p>$desc_html</p>";
 						}
-						$desc = explode(NEW_LINE_REPLACEMENT, $desc)[0];
+
+//						$desc = explode(NEW_LINE_REPLACEMENT, $desc)[0];
+						$desc = explode(NEW_LINE_REPLACEMENT, $desc);
+						if ((!empty($desc)) && is_array($desc)) {
+							$new_desc = null;
+							foreach ($desc as $desc_row) {
+								$desc_row = trim($desc_row);
+								if ($desc_row) {
+									$new_desc = $desc_row;
+									break;
+								}
+							}
+							if ($new_desc)
+							$desc = $new_desc;
+						}
+
 						$html = "$video_html{$desc_html}<h3>Trascrizione del video</h3>\n\n<p>$transcript</p>\n\n";
 						$html = filter_content($html, false);
 						if ($html) {
@@ -1174,7 +1199,7 @@ function proc_yt_download_url(array $data) {
 							$str_comp_len = ((int)(strlen($desc) / 2));
 							$text_content = $post->get_text_content('</div></figure>');
 							if (strtoupper(substr($desc, 0, $str_comp_len)) === strtoupper(substr($text_content, 0, $str_comp_len))) {
-								$post->excerpt = "DESCRIZIONE UGUALE";
+								//$post->excerpt = "DESCRIZIONE UGUALE";
 							}
 							if (WP_PUBLISH_AS_DRAFT) {
 								$post->status = 'draft';	
@@ -1188,32 +1213,39 @@ function proc_yt_download_url(array $data) {
 								$the_tags[] = $data['channel'];
 							$the_tags[] = 'Video';
 							$the_tags[] = 'YouTube';
-							if (is_array($tags))
-								$the_tags = array_merge($the_tags, $tags);
+							if (is_array($tags && (!empty($tags)))) {
+								//$the_tags = array_merge($the_tags, $tags);
+								$the_tags = array_values(array_unique(array_merge($the_tags, $tags)));
+							}
 							$err = '';
 							$wp_website_target_user = get_env_var('SC_WP_ADMIN_USER');
 							$wp_website_target_password = get_env_var('SC_WP_ADMIN_PWD');
 							$JWTWpAPI = new JWTWpAPI(WP_WEBSITE_TARGET_URL, $wp_website_target_user, $wp_website_target_password, false);
 							$res = $JWTWpAPI->add_post_tags($post, $err, '', '', get_env_var('AI_API_USER_KEY'), get_env_var('AI_API_TOKEN'));
-							if (isset($res['data']))
-								unset($res['data']);
-							if (is_array($res))
-								$the_tags = array_values(array_unique(array_merge($the_tags, $res)));
-
-// ab_log("[PROC_YT_DOWNLOAD_URL] [$title] 100 the_tags = " . print_r($the_tags, true));	// debug
-
+							if (!empty($res)) {
+								if (is_array($res)) {
+									if (isset($res['data']))
+										unset($res['data']);
+									$the_tags = array_values(array_unique(array_merge($the_tags, $res)));
+								}
+							}
 							$post->tags = $the_tags;
 							$post->featured_media_url = $image_url;
 							$extra_data = [];
 							$extra_data['_yoast_wpseo_metadesc'] = $desc;
 							$extra_data['meta'] = [];
 							$extra_data['meta']['_yoast_wpseo_metadesc'] = $desc;
+
+							if (WP_MINUTES_ADD_TO_PUBLISH_TIME) {
+								$curr_timestamp = time();
+								$publish_timestamp = $curr_timestamp + (((int)WP_MINUTES_ADD_TO_PUBLISH_TIME) * 60);
+								$extra_data['date'] = date("Y-m-d H:i:s", $publish_timestamp);
+							}
+
 							$res = $JWTWpAPI->add_post_categories($post, $err, '', '', get_env_var('AI_API_USER_KEY'), get_env_var('AI_API_TOKEN'));
-
-// ab_log("[PROC_YT_DOWNLOAD_URL] [$title] 200 res = " . print_r($res, true));	// debug
-
 							$post->categories = $res;
-							$extra_data['meta']['wp_firstcat_cetegory_id'] = (int)$post->categories[0];
+							if (!empty($post->categories))
+								$extra_data['meta']['wp_firstcat_cetegory_id'] = (int)$post->categories[0];
 							$res = $JWTWpAPI->create_post($post, $err, true, $extra_data);
 							if (!$res) {
 								ab_log('[PROC_YT_DOWNLOAD_URL][ERROR] ' . $err);

@@ -492,7 +492,7 @@ class JWTWpAPI {
 	private function _implode_tags(?array $tag_list): ?string {
 
 
-ab_log("[_IMPLODE_TAGS] 100 tag_list = " . print_r($tag_list, true));	// debug
+//ab_log("[_IMPLODE_TAGS] 100 tag_list = " . print_r($tag_list, true));	// debug
 
 		if (!function_exists('delete_ending')) {
 			function delete_ending(string $ending, string $text, bool $case_sensitive = true): string {
@@ -518,7 +518,7 @@ ab_log("[_IMPLODE_TAGS] 100 tag_list = " . print_r($tag_list, true));	// debug
 		$result_tag_names = '';
 		$cur_tags = $this->tags();
 		
-ab_log("[_IMPLODE_TAGS] 200 cur_tags = " . print_r($cur_tags, true));	// debug
+//ab_log("[_IMPLODE_TAGS] 200 cur_tags = " . print_r($cur_tags, true));	// debug
 
 
 		if ($cur_tags) {
@@ -529,7 +529,7 @@ ab_log("[_IMPLODE_TAGS] 200 cur_tags = " . print_r($cur_tags, true));	// debug
 				$tag = delete_ending(',', $tag);
 				$tag = trim($tag);
 		
-ab_log("[_IMPLODE_TAGS] 300 tag = $tag");	// debug
+//ab_log("[_IMPLODE_TAGS] 300 tag = $tag");	// debug
 
 				foreach ($cur_tags as $key => $val) {
 
@@ -539,24 +539,24 @@ ab_log("[_IMPLODE_TAGS] 300 tag = $tag");	// debug
 					$val = trim($val);	
 
 		
-ab_log("[_IMPLODE_TAGS] 400 val = $val");	// debug
+//ab_log("[_IMPLODE_TAGS] 400 val = $val");	// debug
 
 					if (strtolower($val) === strtolower($tag)) {
 						$new_tag_id = $key;
 		
-ab_log("[_IMPLODE_TAGS] 500 new_tag_id = $new_tag_id");	// debug
+//ab_log("[_IMPLODE_TAGS] 500 new_tag_id = $new_tag_id");	// debug
 
 						break;
 					}
 				}
 		
-ab_log("[_IMPLODE_TAGS] 600");	// debug
+//ab_log("[_IMPLODE_TAGS] 600");	// debug
 
 				if (!$new_tag_id)
 					$new_tag_id = $this->create_tag($tag);
 				if ($new_tag_id) {
 		
-ab_log("[_IMPLODE_TAGS] 700 new_tag_id = $new_tag_id");	// debug
+//ab_log("[_IMPLODE_TAGS] 700 new_tag_id = $new_tag_id");	// debug
 
 					if (strpos(strtolower($result_tag_names), strtolower("§{$tag}§")) === false) {
 						if ($result)
@@ -564,7 +564,7 @@ ab_log("[_IMPLODE_TAGS] 700 new_tag_id = $new_tag_id");	// debug
 						$result .= $new_tag_id;
 						$result_tag_names .= "§{$tag}§";
 		
-ab_log("[_IMPLODE_TAGS] 800 result_tag_names = $result_tag_names");	// debug
+//ab_log("[_IMPLODE_TAGS] 800 result_tag_names = $result_tag_names");	// debug
 
 					}
 				}
@@ -575,7 +575,7 @@ ab_log("[_IMPLODE_TAGS] 800 result_tag_names = $result_tag_names");	// debug
 			$result = null;
 
 		
-ab_log("[_IMPLODE_TAGS] 900 result = $result");	// debug
+//ab_log("[_IMPLODE_TAGS] 900 result = $result");	// debug
 
 		return $result;
 
@@ -742,7 +742,7 @@ ab_log("[_IMPLODE_TAGS] 900 result = $result");	// debug
 
 		$query = [(object)['role' => 'system', 'content' => "Sei un giornalista e blogger esperto di SEO che scrive su un blog online di notizie sull'attualità ottimizzando i testi per la SEO."]];
 		$text_content = $post->get_text_content($text_start_key, $text_end_key);
-		$user_text = "Trova un massimo di 10 tra i migliori tag per il testo seguente. Rispondi solo elencando i tag separati da virgola. Ecco il testo: \r\n" . $text_content;
+		$user_text = "Trova un massimo di 5 tra i migliori tag per il testo seguente. Rispondi solo elencando i tag separati da virgola. Ecco il testo: \r\n" . $text_content;
 		$query[] = (object)['role' => 'user', 'content' => $user_text];
 		$postdata = ['query' => json_encode($query), 'token' => get_token($ai_api_user_key, $ai_api_token)];
 		$err = '';
